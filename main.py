@@ -63,7 +63,9 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
     for index, licence_number in enumerate(driver_file['Private Hire Driver License Number']):
         original_licence_number = str(licence_number)  # convert to string for manipulation
         original_licence_number = original_licence_number[:6]
-        full_name = f"{driver_file.iloc[index]['Forename']} {driver_file.iloc[index]['Surname']}"
+        surname = driver_file.iloc[index]['Surname']
+        surname_split = surname.split()  # Split by Spaces
+        surname = surname_split[-1]
 
         search_attempts = 0
 
@@ -93,7 +95,10 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
 
                 driver_name = remove_prefix(driver_name)
 
-                if full_name.lower() == driver_name.lower():
+                licence_surname = driver_name.split()
+                licence_surname = licence_surname[-1]
+
+                if surname.lower() == licence_surname.lower():
                     # Capture a screenshot of the page and save it as a PNG
                     screenshot_path = os.path.join('results\\drivers', f'{driver_name}.png')
                     driver.save_screenshot(screenshot_path)
@@ -129,6 +134,7 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
 
                     break  # Exit the loop if the screenshot is successfully captured
                 else:
+                    original_licence_number = original_licence_number[:-1]  # Cut off the last digit
                     search_attempts += 1
 
         # If all attempts fail, add the original licence number to not_found list
@@ -191,7 +197,7 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
             file.writelines(lines)
 
     # Load the CSV file
-    vehicle_file = pandas.read_csv('vehicles.csv')
+    vehicle_file = pandas.read_csv('Files\\vehicles.csv')
 
     # List to store the licence numbers that couldn't be found
     vehicles_not_found = []
