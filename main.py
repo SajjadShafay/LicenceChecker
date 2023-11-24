@@ -8,6 +8,8 @@ from PIL import Image, ImageDraw, ImageFont
 import img2pdf
 import datetime
 
+# TODO: Report needs fine tuning
+# TODO: Date/Time stamp needs fine tuning
 # TODO: Dialog boxes to open files rather than explicitly naming them in code
 # TODO: Optimize Code - reduce amount of repeated code
 
