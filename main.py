@@ -8,14 +8,8 @@ from PIL import Image, ImageDraw, ImageFont
 import img2pdf
 import datetime
 
-# TODO: Report not printing not founds line by line.
-# TODO: PDF Error: Image contains an alpha channel. Computing a
-#  separate soft mask (/SMask) image to store transparency in PDF.
-# TODO: Optimize Code - reduce amount of repeated code
-# TODO: Change the code so the files are being read from the Files folder
-# TODO: the date .now() thing is wrong. It only checks the time ONCE and then uses that for the whole thing. It should
-#   check the time now every time.
 # TODO: Dialog boxes to open files rather than explicitly naming them in code
+# TODO: Optimize Code - reduce amount of repeated code
 
 
 def remove_prefix(text):
@@ -43,7 +37,7 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
     # Set up the web driver
     driver = webdriver.Chrome()
 
-    file_path = "driver.csv"
+    file_path = "Files\\driver.csv"
     # Read the content of the CSV file
     with open(file_path, 'r') as file:
         lines = file.readlines()
@@ -57,7 +51,7 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
             file.writelines(lines)
 
     # load the driver CSV File
-    driver_file = pandas.read_csv('driver.csv')
+    driver_file = pandas.read_csv('Files\\driver.csv')
 
     # List to store licence numbers that couldn't be found
     drivers_not_found = []
@@ -66,9 +60,11 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
     drivers_completed = []
 
     # Iterate over the licence numbers in the CSV file:
-    for licence_number in driver_file['Private Hire Driver License Number']:
+    for index, licence_number in enumerate(driver_file['Private Hire Driver License Number']):
         original_licence_number = str(licence_number)  # convert to string for manipulation
         original_licence_number = original_licence_number[:6]
+        full_name = f"{driver_file.iloc[index]['Forename']} {driver_file.iloc[index]['Surname']}"
+
         search_attempts = 0
 
         while search_attempts < 3:  # Try three different variations of the licence number
@@ -90,19 +86,21 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
                 search_attempts += 1
             else:
                 # If licence number found, capture screenshot with the driver's name and exit the loop
-                try:
-                    driver_name_element = driver.find_element(by='xpath', value='//*[@id="_id177:driverResults'
-                                                                                ':tbody_element"]/tr/td[2]')
-                    driver_name = driver_name_element.text.strip()
 
-                    driver_name = remove_prefix(driver_name)
+                driver_name_element = driver.find_element(by='xpath', value='//*[@id="_id177:driverResults'
+                                                                            ':tbody_element"]/tr/td[2]')
+                driver_name = driver_name_element.text.strip()
 
+                driver_name = remove_prefix(driver_name)
+
+                if full_name.lower() == driver_name.lower():
                     # Capture a screenshot of the page and save it as a PNG
                     screenshot_path = os.path.join('results\\drivers', f'{driver_name}.png')
                     driver.save_screenshot(screenshot_path)
 
                     # Stamp the date and time of the check on the image
                     img = Image.open(screenshot_path)
+                    now = datetime.datetime.now()
                     current_datetime = now.strftime("%d-%m-%Y %H:%M")
                     # Set the font and size for the timestamp
                     font_path = 'SwanseaBold-D0ox.ttf'
@@ -117,14 +115,21 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
                     # Save the screenshot with the timestamp
                     img.save(screenshot_path)
 
+                    # Remove the alpha channel
+                    img_alpha = Image.open(screenshot_path)
+                    # If the image has an alpha channel, convert it to RGB (removing transparency)
+                    if img_alpha.mode in ('RGBA', 'LA') or (img_alpha.mode == 'P' and 'transparency' in img_alpha.info):
+                        img_alpha = img_alpha.convert('RGB')
+                    # Save the modified image
+                    img_alpha.save(screenshot_path)
+                    img_alpha.close()
+
                     # Add to the list of successful searches
                     drivers_completed.append(driver_name)
 
                     break  # Exit the loop if the screenshot is successfully captured
-                except Exception as e:
-                    print(f"Error occurred while extracting the driver name: {str(e)}")
-                    drivers_not_found.append(original_licence_number)
-                    break
+                else:
+                    search_attempts += 1
 
         # If all attempts fail, add the original licence number to not_found list
         if search_attempts == 3:
@@ -134,12 +139,16 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
     driver.quit()
 
     # Generate report
+    now = datetime.datetime.now()
+    current_datetime = now.strftime("%d-%m-%Y %H:%M")
     with open(report_file, mode='w') as report:
         report.write(f"Driver check completed on {str(current_datetime)}")
         report.write("The following driver licence numbers could not be found:")
+        for completed in drivers_completed:
+            report.write(f"\n{str(completed)}")
+        report.write('\n')
         for not_found in drivers_not_found:
-            report.write(str(not_found))
-
+            report.write(f"\n{str(not_found)}")
 
     # Print the drivers that were successfully found
     print('\nDrivers successfully found:', drivers_completed)
@@ -168,7 +177,7 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
     # Set up the web driver
     driver = webdriver.Chrome()
 
-    file_path = "vehicles.csv"
+    file_path = "Files\\vehicles.csv"
     # Read the content of the CSV file
     with open(file_path, 'r') as file:
         lines = file.readlines()
@@ -218,6 +227,7 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
             # Stamp the date and time of the check on the image
             img = Image.open(screenshot_path)
             # Get current Date and time
+            now = datetime.datetime.now()
             current_datetime = now.strftime("%d-%m-%Y %H:%M")
             # Set the font and size for the timestamp
             font_path = 'SwanseaBold-D0ox.ttf'
@@ -232,6 +242,15 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
             # Save the screenshot with the timestamp
             img.save(screenshot_path)
 
+            # Remove the alpha channel
+            img_alpha = Image.open(screenshot_path)
+            # If the image has an alpha channel, convert it to RGB (removing transparency)
+            if img_alpha.mode in ('RGBA', 'LA') or (img_alpha.mode == 'P' and 'transparency' in img_alpha.info):
+                img_alpha = img_alpha.convert('RGB')
+            # Save the modified image
+            img_alpha.save(screenshot_path)
+            img_alpha.close()
+
             # Add completed search to completed list
             vehicles_completed.append(reg_number)
 
@@ -239,11 +258,17 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
     driver.quit()
 
     # Generate report
-    with open(report_file, mode='a') as report:
+    now = datetime.datetime.now()
+    current_datetime = now.strftime("%d-%m-%Y %H:%M")
+    with open(report_file, mode='a+') as report:
+        report.write('\n')
         report.write(f"\n Vehicle check completed on {str(current_datetime)}")
+        for completed in vehicles_completed:
+            report.write(f"\n{str(completed)}")
+        report.write('\n')
         report.write("The following reg numbers could not be found:")
         for not_found in vehicles_not_found:
-            report.write(str(not_found))
+            report.write(f"\n{str(not_found)}")
 
     # Print the vehicles that were successfully found
     print('\nVehicles successfully found:', vehicles_completed)
