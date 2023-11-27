@@ -12,7 +12,8 @@ import datetime
 import tkinter
 from tkinter import filedialog
 
-# TODO: Dialog boxes to open files rather than explicitly naming them in code
+# TODO: File dialog window keeps opening behind IDE
+# TODO: File dialog won't show network drives
 # TODO: Optimize Code - reduce amount of repeated code
 
 
@@ -25,6 +26,9 @@ def remove_prefix(text):
 
     return cleaned_text
 
+def open_file(file_path):
+
+    return file_path
 
 DRIVER_PAGE = ('https://tph.tfl.gov.uk/TfL/SearchDriverLicence.page?org.apache.shale.dialog.DIALOG_NAME'
                '=TPHDriverLicence&Param=lg2.TPHDriverLicence&menuId=6')
@@ -39,7 +43,8 @@ driver_Choice = input("Start driver pco licence check? (Y/N): ")
 print('\n')
 
 if driver_Choice == 'y' or driver_Choice == 'Y':
-    #Create Chrome options with headless mode
+
+    # Create Chrome options with headless mode
     chrome_options = Options()
     chrome_options.add_argument('--headless')
 
@@ -48,8 +53,11 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
 
     root = tkinter.Tk()
     root.withdraw()
-    #file_path = "Files\\driver.csv"
-    file_path = filedialog.askopenfilename()
+    file_path = filedialog.askopenfilename(parent=root, initialdir=r"\\AJMTDrive\AJMT")
+    root.deiconify()
+    root.update()
+    root.destroy()
+    # file_path = "Files\\driver.csv"
     # Read the content of the CSV file
     with open(file_path, 'r') as file:
         lines = file.readlines()
@@ -63,7 +71,7 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
             file.writelines(lines)
 
     # load the driver CSV File
-    driver_file = pandas.read_csv('Files\\driver.csv')
+    driver_file = pandas.read_csv(file_path)
 
     # List to store licence numbers that couldn't be found
     drivers_not_found = []
@@ -81,16 +89,16 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
         searching_driver = True
         print(f"\nSearching for driver licence number: {original_licence_number}", end=' ')
         dot_count = 0
-        while searching_driver:
-            time.sleep(0.5)
-            sys.stdout.write('.')
-            sys.stdout.flush()
-            dot_count += 1
-
-            if dot_count == 3:
-                sys.stdout.write('\r.')  # move cursor to the back of the line
-                dot_count = 1
-        sys.stdout.flush()
+        # while searching_driver:
+        #     time.sleep(0.5)
+        #     sys.stdout.write('.')
+        #     sys.stdout.flush()
+        #     dot_count += 1
+        #
+        #     if dot_count == 3:
+        #         sys.stdout.write('\r.')  # move cursor to the back of the line
+        #         dot_count = 1
+        # sys.stdout.flush()
         search_attempts = 0
 
         while search_attempts < 3:  # Try three different variations of the licence number
@@ -156,7 +164,7 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
                     # Add to the list of successful searches
                     drivers_completed.append(driver_name)
 
-                    searching_driver = False
+                    # searching_driver = False
 
                     break  # Exit the loop if the screenshot is successfully captured
                 else:
@@ -166,7 +174,7 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
         # If all attempts fail, add the original licence number to not_found list
         if search_attempts == 3:
             drivers_not_found.append(licence_number)
-            searching_driver = False
+            # searching_driver = False
 
     # Close the web driver
     driver.quit()
@@ -214,8 +222,13 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
 
     #file_path = "Files\\vehicles.csv"
     root = tkinter.Tk()
+    root.deiconify()
     root.withdraw()
-    file_path = filedialog.askopenfilename()
+    root.focus_force()
+
+    file_path = filedialog.askopenfilename(initialdir=r"//AJMTDrive/AJMT", parent=root)
+    root.update()
+    root.destroy()
     # Read the content of the CSV file
     with open(file_path, 'r') as file:
         lines = file.readlines()
@@ -229,7 +242,7 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
             file.writelines(lines)
 
     # Load the CSV file
-    vehicle_file = pandas.read_csv('Files\\vehicles.csv')
+    vehicle_file = pandas.read_csv(file_path)
 
     # List to store the licence numbers that couldn't be found
     vehicles_not_found = []
@@ -243,19 +256,19 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
         driver.get(VEHICLE_PAGE)
 
         reg_number = reg_number.replace(" ", "")
-        searching_vehicle = True
+        # searching_vehicle = True
         print(f"Searching for vehicle reg: {reg_number}...")
         dot_count = 0
-        while searching_vehicle:
-            time.sleep(0.5)
-            sys.stdout.write('.')
-            sys.stdout.flush()
-            dot_count += 1
+        # while searching_vehicle:
+        #    time.sleep(0.5)
+        #    sys.stdout.write('.')
+        #    sys.stdout.flush()
+        #    dot_count += 1
 
-            if dot_count == 3:
-                sys.stdout.write('\r.')  # move cursor to the back of the line
-                dot_count = 1  #
-        sys.stdout.flush()
+        #    if dot_count == 3:
+        #        sys.stdout.write('\r.')  # move cursor to the back of the line
+        #        dot_count = 1  #
+        # sys.stdout.flush()
 
         # Find the search box and enter the licence number
         search_box = driver.find_element(by='name', value='searchvehiclelicenceform:VehicleVRM')
@@ -268,7 +281,7 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
         # Check if the reg number was found
         if 'Please check the following and try again:' in driver.page_source:
             vehicles_not_found.append(reg_number)
-            searching_vehicle = False
+            # searching_vehicle = False
         else:
             # If reg number found, capture screenshot with the reg number and exit the loop
 
@@ -305,7 +318,7 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
 
             # Add completed search to completed list
             vehicles_completed.append(reg_number)
-            searching_vehicle = False
+            # searching_vehicle = False
 
     # Close the web driver
     driver.quit()
