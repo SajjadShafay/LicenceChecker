@@ -2,14 +2,16 @@ import os
 import pandas
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.chrome.options import Options
 import time
+import sys
 import re
 from PIL import Image, ImageDraw, ImageFont
 import img2pdf
 import datetime
+import tkinter
+from tkinter import filedialog
 
-# TODO: Report needs fine tuning
-# TODO: Date/Time stamp needs fine tuning
 # TODO: Dialog boxes to open files rather than explicitly naming them in code
 # TODO: Optimize Code - reduce amount of repeated code
 
@@ -34,12 +36,20 @@ current_date = now.strftime("%d-%m-%Y")
 report_file = f"Reports\\Report {current_date}.txt"
 
 driver_Choice = input("Start driver pco licence check? (Y/N): ")
+print('\n')
 
 if driver_Choice == 'y' or driver_Choice == 'Y':
-    # Set up the web driver
-    driver = webdriver.Chrome()
+    #Create Chrome options with headless mode
+    chrome_options = Options()
+    chrome_options.add_argument('--headless')
 
-    file_path = "Files\\driver.csv"
+    # Set up the web driver
+    driver = webdriver.Chrome(options=chrome_options)
+
+    root = tkinter.Tk()
+    root.withdraw()
+    #file_path = "Files\\driver.csv"
+    file_path = filedialog.askopenfilename()
     # Read the content of the CSV file
     with open(file_path, 'r') as file:
         lines = file.readlines()
@@ -68,7 +78,19 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
         surname = driver_file.iloc[index]['Surname']
         surname_split = surname.split()  # Split by Spaces
         surname = surname_split[-1]
+        searching_driver = True
+        print(f"\nSearching for driver licence number: {original_licence_number}", end=' ')
+        dot_count = 0
+        while searching_driver:
+            time.sleep(0.5)
+            sys.stdout.write('.')
+            sys.stdout.flush()
+            dot_count += 1
 
+            if dot_count == 3:
+                sys.stdout.write('\r.')  # move cursor to the back of the line
+                dot_count = 1
+        sys.stdout.flush()
         search_attempts = 0
 
         while search_attempts < 3:  # Try three different variations of the licence number
@@ -116,7 +138,7 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
                     text_color = 'white'
                     # Add the timestamp to the screenshot
                     draw = ImageDraw.Draw(img)
-                    draw.text((40, 110), current_datetime, font=font, fill=text_color)
+                    draw.text((40, 120), current_datetime, font=font, fill=text_color)
                     # Delete the original screenshot file
                     os.remove(screenshot_path)
                     # Save the screenshot with the timestamp
@@ -134,6 +156,8 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
                     # Add to the list of successful searches
                     drivers_completed.append(driver_name)
 
+                    searching_driver = False
+
                     break  # Exit the loop if the screenshot is successfully captured
                 else:
                     original_licence_number = original_licence_number[:-1]  # Cut off the last digit
@@ -142,6 +166,7 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
         # If all attempts fail, add the original licence number to not_found list
         if search_attempts == 3:
             drivers_not_found.append(licence_number)
+            searching_driver = False
 
     # Close the web driver
     driver.quit()
@@ -151,18 +176,13 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
     current_datetime = now.strftime("%d-%m-%Y %H:%M")
     with open(report_file, mode='w') as report:
         report.write(f"Driver check completed on {str(current_datetime)}")
-        report.write("The following driver licence numbers could not be found:")
+        report.write("The following drivers were successfully found:")
         for completed in drivers_completed:
             report.write(f"\n{str(completed)}")
         report.write('\n')
+        report.write("The following licence numbers could not be found:")
         for not_found in drivers_not_found:
             report.write(f"\n{str(not_found)}")
-
-    # Print the drivers that were successfully found
-    print('\nDrivers successfully found:', drivers_completed)
-
-    # Print the licence numbers that couldn't be found
-    print('\nLicence numbers not found:', drivers_not_found)
 
     for filename in os.listdir('results\\drivers'):
         if filename.endswith('.png'):
@@ -179,13 +199,23 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
             # Remove PNG file
             os.remove(png_file_path)
 
+    print("\nReport generated")
+
 vehicle_Choice = input("\n\nContinue with vehicle licence checks? (Y/N): ")
+print('\n')
 
 if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
-    # Set up the web driver
-    driver = webdriver.Chrome()
+    # Create Chrome options with headless mode
+    chrome_options = Options()
+    chrome_options.add_argument('--headless')
 
-    file_path = "Files\\vehicles.csv"
+    # Set up the web driver
+    driver = webdriver.Chrome(options=chrome_options)
+
+    #file_path = "Files\\vehicles.csv"
+    root = tkinter.Tk()
+    root.withdraw()
+    file_path = filedialog.askopenfilename()
     # Read the content of the CSV file
     with open(file_path, 'r') as file:
         lines = file.readlines()
@@ -213,6 +243,19 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
         driver.get(VEHICLE_PAGE)
 
         reg_number = reg_number.replace(" ", "")
+        searching_vehicle = True
+        print(f"Searching for vehicle reg: {reg_number}...")
+        dot_count = 0
+        while searching_vehicle:
+            time.sleep(0.5)
+            sys.stdout.write('.')
+            sys.stdout.flush()
+            dot_count += 1
+
+            if dot_count == 3:
+                sys.stdout.write('\r.')  # move cursor to the back of the line
+                dot_count = 1  #
+        sys.stdout.flush()
 
         # Find the search box and enter the licence number
         search_box = driver.find_element(by='name', value='searchvehiclelicenceform:VehicleVRM')
@@ -225,6 +268,7 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
         # Check if the reg number was found
         if 'Please check the following and try again:' in driver.page_source:
             vehicles_not_found.append(reg_number)
+            searching_vehicle = False
         else:
             # If reg number found, capture screenshot with the reg number and exit the loop
 
@@ -244,7 +288,7 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
             text_color = 'white'
             # Add the timestamp to the screenshot
             draw = ImageDraw.Draw(img)
-            draw.text((40, 110), current_datetime, font=font, fill=text_color)
+            draw.text((40, 120), current_datetime, font=font, fill=text_color)
             # Delete the original screenshot file
             os.remove(screenshot_path)
             # Save the screenshot with the timestamp
@@ -261,6 +305,7 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
 
             # Add completed search to completed list
             vehicles_completed.append(reg_number)
+            searching_vehicle = False
 
     # Close the web driver
     driver.quit()
@@ -271,6 +316,7 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
     with open(report_file, mode='a+') as report:
         report.write('\n')
         report.write(f"\n Vehicle check completed on {str(current_datetime)}")
+        report.write("Vehicles successfully found:")
         for completed in vehicles_completed:
             report.write(f"\n{str(completed)}")
         report.write('\n')
@@ -278,11 +324,7 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
         for not_found in vehicles_not_found:
             report.write(f"\n{str(not_found)}")
 
-    # Print the vehicles that were successfully found
-    print('\nVehicles successfully found:', vehicles_completed)
-
-    # Print the vehicles that couldn't be found
-    print('\nVehicles not found:', vehicles_not_found)
+    print("\nReport updated")
 
     for filename in os.listdir('results\\vehicles'):
         if filename.endswith('.png'):
