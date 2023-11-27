@@ -6,15 +6,18 @@ from selenium.webdriver.chrome.options import Options
 import time
 import sys
 import re
+import threading
 from PIL import Image, ImageDraw, ImageFont
 import img2pdf
 import datetime
 import tkinter
 from tkinter import filedialog
 
-# TODO: File dialog window keeps opening behind IDE
-# TODO: File dialog won't show network drives
-# TODO: Optimize Code - reduce amount of repeated code
+
+# TODO: Searching animation working but it's looping through every pco number that's
+#   been searched in the same line
+# TODO: Vehicle search needs to be updated with all the additions to driver search
+# TODO: Optimize Code - reduce amount of repeated code - DESPERATELY NEEDS CLEANUP
 
 
 def remove_prefix(text):
@@ -26,9 +29,24 @@ def remove_prefix(text):
 
     return cleaned_text
 
-def open_file(file_path):
 
-    return file_path
+def searching_driver(licence_number, search_complete):
+    dot_count = 0
+    while not search_complete:
+        sys.stdout.write(f"\rSearching for driver licence number: {licence_number}{'.' * dot_count} ")
+        sys.stdout.flush()
+        time.sleep(0.5)
+        dot_count = (dot_count + 1) % 4  # Cycle through 3 dots
+
+
+def searching_vehicle(reg_number):
+    dot_count = 0
+    while True:
+        sys.stdout.write(f"\rSearching for vehicle reg: {reg_number}{'.' * dot_count} ")
+        sys.stdout.flush()
+        time.sleep(0.5)
+        dot_count = (dot_count + 1) % 4  # Cycle though 3 dots
+
 
 DRIVER_PAGE = ('https://tph.tfl.gov.uk/TfL/SearchDriverLicence.page?org.apache.shale.dialog.DIALOG_NAME'
                '=TPHDriverLicence&Param=lg2.TPHDriverLicence&menuId=6')
@@ -38,6 +56,12 @@ VEHICLE_PAGE = ('https://tph.tfl.gov.uk/TfL/SearchVehicleLicence.page?org.apache
 now = datetime.datetime.now()
 current_date = now.strftime("%d-%m-%Y")
 report_file = f"Reports\\Report {current_date}.txt"
+root = tkinter.Tk()
+root.attributes("-topmost", True)
+root.withdraw()
+report_output = filedialog.askdirectory(parent=root, initialdir=r"\\AJMTDrive\AJMT", title="Please select an output"
+                                                                                           "folder for the report")
+report_file = os.path.join(report_output, f'Report {current_date}.txt')
 
 driver_Choice = input("Start driver pco licence check? (Y/N): ")
 print('\n')
@@ -52,11 +76,18 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
     driver = webdriver.Chrome(options=chrome_options)
 
     root = tkinter.Tk()
+    root.attributes("-topmost", True)
     root.withdraw()
-    file_path = filedialog.askopenfilename(parent=root, initialdir=r"\\AJMTDrive\AJMT")
+    file_path = filedialog.askopenfilename(parent=root, initialdir=r"\\AJMTDrive\AJMT", title="Please select Drivers.c"
+                                                                                              "sv File")
+    driver_output = filedialog.askdirectory(parent=root, initialdir=r"\\AJMTDrive\AJMT", title="Please select output"
+                                                                                               "folder for drivers")
+    root.attributes("-topmost", False)
     root.deiconify()
-    root.update()
-    root.destroy()
+    root.withdraw()
+    # root.mainloop()
+    # root.quit()
+
     # file_path = "Files\\driver.csv"
     # Read the content of the CSV file
     with open(file_path, 'r') as file:
@@ -86,9 +117,11 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
         surname = driver_file.iloc[index]['Surname']
         surname_split = surname.split()  # Split by Spaces
         surname = surname_split[-1]
-        searching_driver = True
-        print(f"\nSearching for driver licence number: {original_licence_number}", end=' ')
-        dot_count = 0
+        search_complete = False
+        search_thread = threading.Thread(target=searching_driver, args=(licence_number, search_complete,))
+        search_thread.start()
+        #searching_driver(licence_number)
+        #print(f"Searching for driver {licence_number}...")
         # while searching_driver:
         #     time.sleep(0.5)
         #     sys.stdout.write('.')
@@ -132,7 +165,8 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
 
                 if surname.lower() == licence_surname.lower():
                     # Capture a screenshot of the page and save it as a PNG
-                    screenshot_path = os.path.join('results\\drivers', f'{driver_name}.png')
+                    #screenshot_path = os.path.join('results\\drivers', f'{driver_name}.png')
+                    screenshot_path = os.path.join(driver_output, f'{driver_name}.png')
                     driver.save_screenshot(screenshot_path)
 
                     # Stamp the date and time of the check on the image
@@ -165,6 +199,8 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
                     drivers_completed.append(driver_name)
 
                     # searching_driver = False
+                    search_complete = True
+                    print(f"Searching for driver licence number: {licence_number}...Complete")
 
                     break  # Exit the loop if the screenshot is successfully captured
                 else:
@@ -183,19 +219,19 @@ if driver_Choice == 'y' or driver_Choice == 'Y':
     now = datetime.datetime.now()
     current_datetime = now.strftime("%d-%m-%Y %H:%M")
     with open(report_file, mode='w') as report:
-        report.write(f"Driver check completed on {str(current_datetime)}")
-        report.write("The following drivers were successfully found:")
+        report.write(f"Driver check completed on {str(current_datetime)} ")
+        report.write("\n\nThe following drivers were successfully found:")
         for completed in drivers_completed:
             report.write(f"\n{str(completed)}")
         report.write('\n')
-        report.write("The following licence numbers could not be found:")
+        report.write("\nThe following licence numbers could not be found:")
         for not_found in drivers_not_found:
             report.write(f"\n{str(not_found)}")
 
-    for filename in os.listdir('results\\drivers'):
+    for filename in os.listdir(driver_output):
         if filename.endswith('.png'):
             # File path for the current PNG image
-            png_file_path = os.path.join('results\\drivers', filename)
+            png_file_path = os.path.join(driver_output, filename)
 
             # File path for the PDF (replace the .png extension with .pdf)
             pdf_file_path = os.path.splitext(png_file_path)[0] + '.pdf'
@@ -220,15 +256,15 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
     # Set up the web driver
     driver = webdriver.Chrome(options=chrome_options)
 
-    #file_path = "Files\\vehicles.csv"
+    # file_path = "Files\\vehicles.csv"
     root = tkinter.Tk()
-    root.deiconify()
+    root.attributes("-topmost", True)
     root.withdraw()
-    root.focus_force()
-
-    file_path = filedialog.askopenfilename(initialdir=r"//AJMTDrive/AJMT", parent=root)
-    root.update()
-    root.destroy()
+    file_path = filedialog.askopenfilename(parent=root, initialdir=r"\\AJMTDrive\AJMT", title="Please select a vehicles"
+                                                                                              ".csv File")
+    vehicle_output = filedialog.askdirectory(parent=root, initialdir=r"\\AJMTDrive\AJMT", title="Please select an "
+                                                                                                "output folder for "
+                                                                                                "vehicles")
     # Read the content of the CSV file
     with open(file_path, 'r') as file:
         lines = file.readlines()
@@ -257,8 +293,7 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
 
         reg_number = reg_number.replace(" ", "")
         # searching_vehicle = True
-        print(f"Searching for vehicle reg: {reg_number}...")
-        dot_count = 0
+        searching_vehicle(reg_number)
         # while searching_vehicle:
         #    time.sleep(0.5)
         #    sys.stdout.write('.')
@@ -286,7 +321,8 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
             # If reg number found, capture screenshot with the reg number and exit the loop
 
             # Capture a screenshot of the page and save it as a PNG
-            screenshot_path = os.path.join('results\\vehicles', f'{reg_number}.png')
+            # screenshot_path = os.path.join('results\\vehicles', f'{reg_number}.png')
+            screenshot_path = os.path.join(vehicle_output, f'{reg_number}.png')
             driver.save_screenshot(screenshot_path)
 
             # Stamp the date and time of the check on the image
@@ -327,22 +363,22 @@ if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
     now = datetime.datetime.now()
     current_datetime = now.strftime("%d-%m-%Y %H:%M")
     with open(report_file, mode='a+') as report:
-        report.write('\n')
-        report.write(f"\n Vehicle check completed on {str(current_datetime)}")
-        report.write("Vehicles successfully found:")
+        report.write('\n\n')
+        report.write(f"\nVehicle check completed on {str(current_datetime)}")
+        report.write("\n\nVehicles successfully found:")
         for completed in vehicles_completed:
             report.write(f"\n{str(completed)}")
         report.write('\n')
-        report.write("The following reg numbers could not be found:")
+        report.write("\nThe following reg numbers could not be found:")
         for not_found in vehicles_not_found:
             report.write(f"\n{str(not_found)}")
 
     print("\nReport updated")
 
-    for filename in os.listdir('results\\vehicles'):
+    for filename in os.listdir(vehicle_output):
         if filename.endswith('.png'):
             # File path for the current PNG image
-            png_file_path = os.path.join('results\\vehicles', filename)
+            png_file_path = os.path.join(vehicle_output, filename)
 
             # File path for the PDF (replace the .png extension with .pdf)
             pdf_file_path = os.path.splitext(png_file_path)[0] + '.pdf'
