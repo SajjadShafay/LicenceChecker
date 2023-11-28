@@ -1,5 +1,8 @@
 from funcs_imports import *
 
+# Set the logging level to suppress less critical messages
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+
 current_date = get_current_datetime('date')
 report_output = set_output_folder('report')
 report_file = os.path.join(report_output, f'Report {current_date}.txt')

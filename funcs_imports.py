@@ -12,10 +12,16 @@ import img2pdf
 import datetime
 import tkinter
 from tkinter import filedialog
+import logging
+
+sys.stderr = open(os.devnull, 'w')
+
+# Set the logging level to suppress less critical messages
+logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 COMPLETE = "................Complete"
 
-FONT = 'SwanseaBold-D0ox.ttf'
+FONT = 'SwanseaBold.ttf'
 FONT_SIZE = 16
 FONT_COLOR = 'white'
 
@@ -43,7 +49,7 @@ def remove_prefix(text):
 def searching_animation(search_term, search_item, stop_event):
     dot_count = 0
     while not stop_event.is_set():
-        sys.stdout.write(f"\rSearching for {search_term}: {search_item}{'.' * dot_count}")
+        sys.stdout.write(f"\rSearching for {search_term}: {search_item}{'.' * dot_count}{' ' * (3 - dot_count)}")
         sys.stdout.flush()
         time.sleep(0.5)
         dot_count = (dot_count + 1) % 4 # Cycle through 3 dots
@@ -73,8 +79,10 @@ def setup_chrome_driver():
     # Create Chrome options with headless mode
     chrome_options = Options()
     chrome_options.add_argument('--headless')
+    chrome_options.add_argument('--log-level=3')
     # Set up the web driver
     driver = webdriver.Chrome(options=chrome_options)
+
     return driver
 
 
@@ -108,7 +116,7 @@ def stamp_datetime(screenshot_path):
     img = Image.open(screenshot_path)
     now = get_current_datetime('full')
     # Set the font and size for the timestamp
-    font = ImageFont.truetype(FONT, FONT_SIZE)
+    font = ImageFont.load_default()
     # Add the timestamp to the screenshot
     draw = ImageDraw.Draw(img)
     draw.text((40, 120), now, font=font, fill=FONT_COLOR)
