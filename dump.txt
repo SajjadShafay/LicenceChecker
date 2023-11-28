@@ -1,0 +1,396 @@
+import datetime
+import os
+import re
+import sys
+import threading
+import time
+import tkinter
+from tkinter import filedialog
+
+import img2pdf
+import pandas
+from PIL import Image, ImageDraw, ImageFont
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.keys import Keys
+
+
+# TODO: Searching animation working but it's looping through every pco number that's
+#   been searched in the same line
+# TODO: Optimize Code - reduce amount of repeated code - DESPERATELY NEEDS CLEANUP
+
+
+def remove_prefix(text):
+    # Define a regular expression pattern to find prefixes at the beginning of the string
+    pattern = r'\b(?:Mrs|Mr|Miss|Ms)\s*'
+
+    # Use re.sub() to remove occurrences of "Mr." or "Miss" from the string
+    cleaned_text = re.sub(pattern, '', text)
+
+    return cleaned_text
+
+
+def searching_driver(licence_num, stop_event):
+    dot_count = 0
+    # max_length = 30 # Max length of licence number
+    while not stop_event.is_set():
+        sys.stdout.write(f"\rSearching for driver licence number: {licence_num}{'.' * dot_count}")
+        sys.stdout.flush()
+        time.sleep(0.5)
+        dot_count = (dot_count + 1) % 4  # Cycle through 3 dots+
+    return
+
+
+def searching_vehicle(reg_number, stop_event):
+    dot_count = 0
+    while not stop_event.is_set():
+        sys.stdout.write(f"\rSearching for vehicle reg: {reg_number}{'.' * dot_count}")
+        sys.stdout.flush()
+        time.sleep(0.5)
+        dot_count = (dot_count + 1) % 4  # Cycle though 3 dots
+    return
+
+
+DRIVER_PAGE = ('https://tph.tfl.gov.uk/TfL/SearchDriverLicence.page?org.apache.shale.dialog.DIALOG_NAME'
+               '=TPHDriverLicence&Param=lg2.TPHDriverLicence&menuId=6')
+VEHICLE_PAGE = ('https://tph.tfl.gov.uk/TfL/SearchVehicleLicence.page?org.apache.shale.dialog.DIALOG_NAME'
+                '=TPHVehicleLicence&Param=lg2.TPHVehicleLicence&menuId=7')
+
+now = datetime.datetime.now()
+current_date = now.strftime("%d-%m-%Y")
+root = tkinter.Tk()
+root.attributes("-topmost", True)
+root.withdraw()
+report_output = filedialog.askdirectory(parent=root, initialdir=r"\\AJMTDrive\AJMT", title="Please select an output"
+                                                                                           "folder for the report")
+report_file = os.path.join(report_output, f'Report {current_date}.txt')
+
+driver_Choice = input("Start driver pco licence check? (Y/N): ")
+print('\n')
+
+if driver_Choice == 'y' or driver_Choice == 'Y':
+
+    # Create Chrome options with headless mode
+    chrome_options = Options()
+    chrome_options.add_argument('--headless')
+
+    # Set up the web driver
+    driver = webdriver.Chrome(options=chrome_options)
+
+    root = tkinter.Tk()
+    root.attributes("-topmost", True)
+    root.withdraw()
+    file_path = filedialog.askopenfilename(parent=root, initialdir=r"\\AJMTDrive\AJMT", title="Please select Drivers.c"
+                                                                                              "sv File")
+    driver_output = filedialog.askdirectory(parent=root, initialdir=r"\\AJMTDrive\AJMT", title="Please select output"
+                                                                                               "folder for drivers")
+    root.attributes("-topmost", False)
+    root.deiconify()
+    root.withdraw()
+    # root.mainloop()
+    # root.quit()
+
+    # file_path = "Files\\driver.csv"
+    # Read the content of the CSV file
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+    # Check if the header row ends with a comma
+    if not lines[0].strip().endswith(','):
+        # Append a comma to the header row
+        lines[0] = lines[0].rstrip('\n') + ',\n'
+
+        # Write the modified content back to the file
+        with open(file_path, 'w') as file:
+            file.writelines(lines)
+
+    # load the driver CSV File
+    driver_file = pandas.read_csv(file_path)
+
+    # List to store licence numbers that couldn't be found
+    drivers_not_found = []
+
+    # List to store licence numbers that have been found
+    drivers_completed = []
+
+    # Iterate over the licence numbers in the CSV file:
+    for index, licence_number in enumerate(driver_file['Private Hire Driver License Number']):
+
+        original_licence_number = str(licence_number)  # convert to string for manipulation
+        original_licence_number = original_licence_number[:6]
+        surname = driver_file.iloc[index]['Surname']
+        surname_split = surname.split()  # Split by Spaces
+        surname = surname_split[-1]
+        stop_event = threading.Event()
+        search_thread = threading.Thread(target=searching_driver, args=(licence_number, stop_event,))
+        search_thread.start()
+
+        search_attempts = 0
+
+        while search_attempts < 3:  # Try three different variations of the licence number
+            # Navigate to the TFL Licence checker website
+            driver.get(DRIVER_PAGE)
+
+            # Find the search box and enter the licence number
+            search_box = driver.find_element(by='name', value='searchdriverlicenceform:DriverLicenceNo')
+            search_box.send_keys(original_licence_number)
+            search_box.send_keys(Keys.RETURN)
+
+            # Wait for the page to load
+            time.sleep(5)
+
+            # Check if the licence number was found
+            if 'Please check the following and try again:' in driver.page_source:
+                # Reduce the length of the licence number and try again
+                original_licence_number = original_licence_number[:-1]  # Cut off the last digit
+                search_attempts += 1
+            else:
+                # If licence number found, capture screenshot with the driver's name and exit the loop
+
+                driver_name_element = driver.find_element(by='xpath', value='//*[@id="_id177:driverResults'
+                                                                            ':tbody_element"]/tr/td[2]')
+                driver_name = driver_name_element.text.strip()
+
+                driver_name = remove_prefix(driver_name)
+
+                licence_surname = driver_name.split()
+                licence_surname = licence_surname[-1]
+
+                if surname.lower() == licence_surname.lower():
+                    # Capture a screenshot of the page and save it as a PNG
+                    screenshot_path = os.path.join(driver_output, f'{driver_name}.png')
+                    driver.save_screenshot(screenshot_path)
+
+                    # Stamp the date and time of the check on the image
+                    img = Image.open(screenshot_path)
+                    now = datetime.datetime.now()
+                    current_datetime = now.strftime("%d-%m-%Y %H:%M")
+                    # Set the font and size for the timestamp
+                    font_path = 'SwanseaBold-D0ox.ttf'
+                    font_size = 16
+                    font = ImageFont.truetype(font_path, font_size)
+                    text_color = 'white'
+                    # Add the timestamp to the screenshot
+                    draw = ImageDraw.Draw(img)
+                    draw.text((40, 120), current_datetime, font=font, fill=text_color)
+                    # Delete the original screenshot file
+                    os.remove(screenshot_path)
+                    # Save the screenshot with the timestamp
+                    img.save(screenshot_path)
+
+                    # Remove the alpha channel
+                    img_alpha = Image.open(screenshot_path)
+                    # If the image has an alpha channel, convert it to RGB (removing transparency)
+                    if img_alpha.mode in ('RGBA', 'LA') or (img_alpha.mode == 'P' and 'transparency' in img_alpha.info):
+                        img_alpha = img_alpha.convert('RGB')
+                    # Save the modified image
+                    img_alpha.save(screenshot_path)
+                    img_alpha.close()
+
+                    # Add to the list of successful searches
+                    drivers_completed.append(driver_name)
+
+                    # searching_driver = False
+
+                    stop_event.set()
+                    print("................Complete")
+
+                    break  # Exit the loop if the screenshot is successfully captured
+                else:
+                    original_licence_number = original_licence_number[:-1]  # Cut off the last digit
+                    search_attempts += 1
+
+        # If all attempts fail, add the original licence number to not_found list
+        if search_attempts == 3:
+            drivers_not_found.append(licence_number)
+            stop_event.set()
+            print("................Complete")
+
+    # Close the web driver
+    driver.quit()
+
+    # Generate report
+    now = datetime.datetime.now()
+    current_datetime = now.strftime("%d-%m-%Y %H:%M")
+    with open(report_file, mode='w') as report:
+        report.write(f"Driver check completed on {str(current_datetime)} ")
+        report.write("\n\nThe following drivers were successfully found:")
+        for completed in drivers_completed:
+            report.write(f"\n{str(completed)}")
+        report.write('\n')
+        report.write("\nThe following licence numbers could not be found:")
+        for not_found in drivers_not_found:
+            report.write(f"\n{str(not_found)}")
+
+    for filename in os.listdir(driver_output):
+        if filename.endswith('.png'):
+            # File path for the current PNG image
+            png_file_path = os.path.join(driver_output, filename)
+
+            # File path for the PDF (replace the .png extension with .pdf)
+            pdf_file_path = os.path.splitext(png_file_path)[0] + '.pdf'
+
+            # Convert PNG to PDF
+            with open(pdf_file_path, "wb") as pdf_file:
+                pdf_file.write(img2pdf.convert(png_file_path))
+
+            # Remove PNG file
+            os.remove(png_file_path)
+
+    print("\nReport generated")
+
+vehicle_Choice = input("\n\nContinue with vehicle licence checks? (Y/N): ")
+print('\n')
+
+if vehicle_Choice == 'y' or vehicle_Choice == 'Y':
+    # Create Chrome options with headless mode
+    chrome_options = Options()
+    chrome_options.add_argument('--headless')
+
+    # Set up the web driver
+    driver = webdriver.Chrome(options=chrome_options)
+
+    # file_path = "Files\\vehicles.csv"
+    root = tkinter.Tk()
+    root.attributes("-topmost", True)
+    root.withdraw()
+    file_path = filedialog.askopenfilename(parent=root, initialdir=r"\\AJMTDrive\AJMT", title="Please select Vehicles"
+                                                                                              ".csv File")
+    vehicle_output = filedialog.askdirectory(parent=root, initialdir=r"\\AJMTDrive\AJMT", title="Please select "
+                                                                                                "output folder for "
+                                                                                                "vehicles")
+    root.attributes("-topmost", False)
+    root.deiconify()
+    root.withdraw()
+
+    # Read the content of the CSV file
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+    # Check if the header row ends with a comma
+    if not lines[0].strip().endswith(','):
+        # Append a comma to the header row
+        lines[0] = lines[0].rstrip('\n') + ',\n'
+
+        # Write the modified content back to the file
+        with open(file_path, 'w') as file:
+            file.writelines(lines)
+
+    # Load the CSV file
+    vehicle_file = pandas.read_csv(file_path)
+
+    # List to store the licence numbers that couldn't be found
+    vehicles_not_found = []
+
+    # List to store the vehicles that have been found
+    vehicles_completed = []
+
+    # Iterate over the reg numbers in the CSV file
+    for reg_number in vehicle_file['VRM']:
+        # Navigate to the TFL Licence checker
+        driver.get(VEHICLE_PAGE)
+
+        reg_number = reg_number.replace(" ", "")
+        search_complete = False
+        # searching_vehicle = True
+        stop_event = threading.Event()
+        search_thread = threading.Thread(target=searching_vehicle, args=(reg_number, stop_event,))
+        search_thread.start()
+        # while searching_vehicle:
+        #    time.sleep(0.5)
+        #    sys.stdout.write('.')
+        #    sys.stdout.flush()
+        #    dot_count += 1
+
+        #    if dot_count == 3:
+        #        sys.stdout.write('\r.')  # move cursor to the back of the line
+        #        dot_count = 1  #
+        # sys.stdout.flush()
+
+        # Find the search box and enter the licence number
+        search_box = driver.find_element(by='name', value='searchvehiclelicenceform:VehicleVRM')
+        search_box.send_keys(reg_number)
+        search_box.send_keys(Keys.RETURN)
+
+        # Wait for the page to load
+        time.sleep(5)  # adjust as needed
+
+        # Check if the reg number was found
+        if 'Please check the following and try again:' in driver.page_source:
+            vehicles_not_found.append(reg_number)
+            stop_event.set()
+            print("................Complete")
+            # searching_vehicle = False
+        else:
+            # If reg number found, capture screenshot with the reg number and exit the loop
+
+            # Capture a screenshot of the page and save it as a PNG
+            # screenshot_path = os.path.join('results\\vehicles', f'{reg_number}.png')
+            screenshot_path = os.path.join(vehicle_output, f'{reg_number}.png')
+            driver.save_screenshot(screenshot_path)
+
+            # Stamp the date and time of the check on the image
+            img = Image.open(screenshot_path)
+            # Get current Date and time
+            now = datetime.datetime.now()
+            current_datetime = now.strftime("%d-%m-%Y %H:%M")
+            # Set the font and size for the timestamp
+            font_path = 'SwanseaBold-D0ox.ttf'
+            font_size = 16
+            font = ImageFont.truetype(font_path, font_size)
+            text_color = 'white'
+            # Add the timestamp to the screenshot
+            draw = ImageDraw.Draw(img)
+            draw.text((40, 120), current_datetime, font=font, fill=text_color)
+            # Delete the original screenshot file
+            os.remove(screenshot_path)
+            # Save the screenshot with the timestamp
+            img.save(screenshot_path)
+
+            # Remove the alpha channel
+            img_alpha = Image.open(screenshot_path)
+            # If the image has an alpha channel, convert it to RGB (removing transparency)
+            if img_alpha.mode in ('RGBA', 'LA') or (img_alpha.mode == 'P' and 'transparency' in img_alpha.info):
+                img_alpha = img_alpha.convert('RGB')
+            # Save the modified image
+            img_alpha.save(screenshot_path)
+            img_alpha.close()
+
+            stop_event.set()
+            print("................Complete")
+
+            # Add completed search to completed list
+            vehicles_completed.append(reg_number)
+            # searching_vehicle = False
+
+    # Close the web driver
+    driver.quit()
+
+    # Generate report
+    now = datetime.datetime.now()
+    current_datetime = now.strftime("%d-%m-%Y %H:%M")
+    with open(report_file, mode='a+') as report:
+        report.write('\n\n')
+        report.write(f"\nVehicle check completed on {str(current_datetime)}")
+        report.write("\n\nVehicles successfully found:")
+        for completed in vehicles_completed:
+            report.write(f"\n{str(completed)}")
+        report.write('\n')
+        report.write("\nThe following reg numbers could not be found:")
+        for not_found in vehicles_not_found:
+            report.write(f"\n{str(not_found)}")
+
+    print("\nReport updated")
+
+    for filename in os.listdir(vehicle_output):
+        if filename.endswith('.png'):
+            # File path for the current PNG image
+            png_file_path = os.path.join(vehicle_output, filename)
+
+            # File path for the PDF (replace the .png extension with .pdf)
+            pdf_file_path = os.path.splitext(png_file_path)[0] + '.pdf'
+
+            # Convert PNG to PDF
+            with open(pdf_file_path, "wb") as pdf_file:
+                pdf_file.write(img2pdf.convert(png_file_path))
+
+            # Remove PNG file
+            os.remove(png_file_path)
