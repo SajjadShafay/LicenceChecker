@@ -128,15 +128,15 @@ def stamp_datetime(screenshot_path):
 
 def generate_report(item, report_file, items_completed, items_not_found):
     now = get_current_datetime('full')
-    with open(report_file, mode='w') as report:
+    with open(report_file, mode='a+') as report:
         report.write(f"Driver check completed on {str(now)}")
         report.write(f"\n\nThe following {item} numbers were successfully found:")
         for completed in items_completed:
-            report.write(f"\n{str(items_completed)}")
+            report.write(f"\n{str(completed)}")
         report.write('\n')
         report.write(f"\nThe following {item} numbers could not be found:")
         for not_found in items_not_found:
-            report.write(f"\n{str(items_not_found)}")
+            report.write(f"\n{str(not_found)}")
         report.write('\n\n')
 
 

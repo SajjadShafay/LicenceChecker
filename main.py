@@ -3,6 +3,9 @@ from funcs_imports import *
 current_date = get_current_datetime('date')
 report_output = set_output_folder('report')
 report_file = os.path.join(report_output, f'Report {current_date}.txt')
+# Create empty file
+with open(report_file, 'w') as file:
+    pass
 
 driver_choice = input("Start driver PCO licence check? (Y/N): ")
 print('\n')
