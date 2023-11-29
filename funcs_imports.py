@@ -49,9 +49,10 @@ def remove_prefix(text):
 def searching_animation(search_term, search_item, stop_event):
     dot_count = 0
     while not stop_event.is_set():
-        sys.stdout.write(f"\rSearching for {search_term}: {search_item}{'.' * dot_count}{' ' * (3 - dot_count)}")
+        sys.stdout.write(f"\rSearching for {search_term}: {search_item}{'.' * dot_count}")
         sys.stdout.flush()
         time.sleep(0.5)
+        sys.stdout.write('\033[K')
         dot_count = (dot_count + 1) % 4 # Cycle through 3 dots
     return
 
