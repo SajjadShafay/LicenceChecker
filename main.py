@@ -124,40 +124,62 @@ if vehicle_choice == 'y' or vehicle_choice == 'Y':
     vehicles_completed = []
 
     # Iterate over the reg numbers in the CSV file
-    for reg_number in vehicle_file['VRM']:
-        # Navigate to the TFL Licence checker
-        driver.get(VEHICLE_PAGE)
+    for index, licence_number in enumerate(vehicle_file['Vehicle License Number']):
 
+        original_licence_number = str(licence_number)
+        original_licence_number = original_licence_number[:6]
+        reg_number = vehicle_file.iloc[index]['VRM']
         reg_number = reg_number.replace(" ", "")
+
+        new_search_attempts = 0
+
         stop_event = threading.Event()
-        search_thread = threading.Thread(target=searching_animation, args=('vehicle reg', reg_number, stop_event,))
+        search_thread = threading.Thread(target=searching_animation, args=('vehicle reg', licence_number, stop_event,))
         search_thread.start()
 
-        # Find the search box and enter the reg plate numnber
-        search_box = driver.find_element(by='name', value=VEHICLE_SEARCH_BOX)
-        search_box.send_keys(reg_number)
-        search_box.send_keys(Keys.RETURN)
+        while new_search_attempts < 3:
+            # Navigate to the TFL Licence checker
+            driver.get(VEHICLE_PAGE)
 
-        # Wait for the page to load
-        time.sleep(5)
+            # Find the search box and enter the vehicle licence number
+            search_box = driver.find_element(by='name', value=VEHICLE_SEARCH_BOX)
+            search_box.send_keys(original_licence_number)
+            search_box.send_keys(Keys.RETURN)
+            # Wait for the page to load
+            time.sleep(5)
 
-        # Check if the reg number was found
-        if "Please check the following and try again:" in driver.page_source:
-            vehicles_not_found.append(reg_number)
-            stop_event.set()
-            print(COMPLETE)
-        else:
-            #Capture screenshot and save as PNG
-            screenshot_path = os.path.join(vehicle_output, f'{reg_number}.png')
-            driver.save_screenshot(screenshot_path)
-            # Stamp the date and time of the check on the image
-            stamp_datetime(screenshot_path)
+            # check if the licence number was found
+            if "Please check the following and try again:" in driver.page_source:
+                original_licence_number = original_licence_number[:-1]
+                new_search_attempts+=1
+            else:
+                # if licence number was found, capture screenshot with reg number and exit the loop
+                reg_number_element = driver.find_element(by='xpath', value=REG_NUMBER_ELEMENT)
+                web_reg_number = reg_number_element.text.strip()
+                print(web_reg_number)
 
-            stop_event.set()
-            print(COMPLETE)
+                if reg_number in web_reg_number:
+                    # Capture screenshot and save as PNG
+                    screenshot_path = os.path.join(vehicle_output, f'{reg_number}.png')
+                    driver.save_screenshot(screenshot_path)
+                    # Stamp the date and time of the check on the image
+                    stamp_datetime(screenshot_path)
 
-            # Add completed search to the completed list
-            vehicles_completed.append(reg_number)
+                    stop_event.set()
+                    print(COMPLETE)
+
+                    # Add completed search to the completed list
+                    vehicles_completed.append(reg_number)
+
+                    break
+                else:
+                    original_licence_number = original_licence_number[:-1]
+                    new_search_attempts += 1
+
+            if new_search_attempts == 3:
+                vehicles_not_found.append(reg_number)
+                stop_event.set()
+                print(COMPLETE)
 
     # CLose the web driver
     driver.quit()

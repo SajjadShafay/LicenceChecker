@@ -17,7 +17,7 @@ import logging
 sys.stderr = open(os.devnull, 'w')
 
 # Set the logging level to suppress less critical messages
-logging.getLogger('urllib3').setLevel(logging.WARNING)
+#logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 COMPLETE = "................Complete"
 
@@ -33,7 +33,8 @@ VEHICLE_PAGE = ('https://tph.tfl.gov.uk/TfL/SearchVehicleLicence.page?org.apache
 DRIVER_SEARCH_BOX = 'searchdriverlicenceform:DriverLicenceNo'
 DRIVER_NAME_ELEMENT = '//*[@id="_id177:driverResults:tbody_element"]/tr/td[2]'
 
-VEHICLE_SEARCH_BOX = 'searchvehiclelicenceform:VehicleVRM'
+VEHICLE_SEARCH_BOX = 'searchvehiclelicenceform:VehiclePlateDiscNo'
+REG_NUMBER_ELEMENT = '//*[@id="_id173"]/p[1]'
 
 
 def remove_prefix(text):
