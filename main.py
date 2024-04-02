@@ -134,7 +134,8 @@ if vehicle_choice == 'y' or vehicle_choice == 'Y':
         new_search_attempts = 0
 
         stop_event = threading.Event()
-        search_thread = threading.Thread(target=searching_animation, args=('vehicle reg', licence_number, stop_event,))
+        search_thread = threading.Thread(target=searching_animation, args=('vehicle licence number',
+                                                                           licence_number, stop_event,))
         search_thread.start()
 
         while new_search_attempts < 3:
@@ -156,7 +157,6 @@ if vehicle_choice == 'y' or vehicle_choice == 'Y':
                 # if licence number was found, capture screenshot with reg number and exit the loop
                 reg_number_element = driver.find_element(by='xpath', value=REG_NUMBER_ELEMENT)
                 web_reg_number = reg_number_element.text.strip()
-                print(web_reg_number)
 
                 if reg_number in web_reg_number:
                     # Capture screenshot and save as PNG
